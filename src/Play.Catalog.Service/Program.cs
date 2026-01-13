@@ -1,12 +1,35 @@
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
+using MongoDB.Driver;
+using Play.Catalog.Service;
 using Play.Catalog.Service.Dto.Dtos;
+using Play.Catalog.Service.Entities;
+using Play.Catalog.Service.Repositories;
+using Play.Catalog.Service.Settings;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+ServiceSettings serviceSettings;
+
+serviceSettings = builder.Configuration.GetSection(nameof(ServiceSettings)).Get<ServiceSettings>();
+
 // Add services to the container.
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var mongoDbSettings = builder.Configuration.GetSection(nameof(MongoDbSettings)).Get<MongoDbSettings>();
+    var mongoClient = new MongoClient(mongoDbSettings.ConnectionString);
+
+    return mongoClient.GetDatabase(serviceSettings.ServiceName);
+});
+
+builder.Services.AddSingleton<IItemsRepository, ItemsRepository>();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -20,75 +43,73 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+
 app.UseHttpsRedirection();
 
 app.MapScalarApiReference();
 
-List<ItemDto> itemDtos = new()
+app.MapGet("items", async (IItemsRepository itemsRepository) =>
 {
-    new ItemDto(Guid.NewGuid(), "Potion", "Restores a small amount of HP", 5, DateTimeOffset.UtcNow),
-    new ItemDto(Guid.NewGuid(), "Antidote", "Cures any poison effect", 7, DateTimeOffset.UtcNow),
-    new ItemDto(Guid.NewGuid(), "Wooden sword", "Deals a small amount of damage", 15, DateTimeOffset.UtcNow),
-};
-
-app.MapGet("items", () =>
-{
-    return itemDtos;
+    var items = (await itemsRepository.GetAllAsync()).Select(item => item.AsDto());
+    return items;
 })
 .WithName("GetItems");
 
-app.MapGet("items/{id}", (Guid id) =>
+app.MapGet("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
 {
-    var item = itemDtos.SingleOrDefault(p => p.Id == id);
+    var item = await itemsRepository.GetAsync(id);
     if (item is null)
     {
         return Results.NotFound();
     }
 
-    return Results.Ok(item);
+    return Results.Ok(item.AsDto());
 })
 .WithName("GetItemById");
 
-app.MapPost("items", (CreateItemDto createItem) =>
+app.MapPost("items", async (CreateItemDto createItem, IItemsRepository itemsRepository) =>
 {
-    var item = new ItemDto(Guid.NewGuid(), createItem.Name, createItem.Description, createItem.Price, DateTimeOffset.UtcNow);
-    itemDtos.Add(item);
+    var item = new Item {
+        Name = createItem.Name,
+        Description = createItem.Description,
+        Price = createItem.Price,
+        CreatedDate = DateTimeOffset.UtcNow
+    };
+
+    await itemsRepository.CreateAsync(item);
 
     return Results.CreatedAtRoute(routeName: "GetItemById",
                                   routeValues: new { Id = item.Id },
                                   value: item);
 });
 
-app.MapPut("items/{id}", (Guid id, UpdateItemDto updateItem) =>
+app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IItemsRepository itemsRepository) =>
 {
-    var itemToUpdate = itemDtos.SingleOrDefault(x => x.Id == id);
+    var itemToUpdate = await itemsRepository.GetAsync(id);
     if (itemToUpdate is null)
     {
         return Results.NotFound();
     }
 
-    var updatedItemValues = itemToUpdate with
-    {
-        Name = updateItem.Name,
-        Description = updateItem.Description,
-        Price = updateItem.Price
-    };
-
-    var index = itemDtos.FindIndex(existingItem => existingItem.Id == id);
-    itemDtos[index] = updatedItemValues;
+    itemToUpdate.Name = updateItem.Name;
+    itemToUpdate.Description = updateItem.Description;
+    itemToUpdate.Price = updateItem.Price;
+    
+    await itemsRepository.UpdateAsync(itemToUpdate);
 
     return Results.NoContent();
 });
 
-app.MapDelete("items/{id}", (Guid id) =>
+app.MapDelete("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
 {
-    var index = itemDtos.FindIndex(existingItem => existingItem.Id == id);
-    if (index == -1)
+    var item = await itemsRepository.GetAsync(id);
+    if (item is null)
     {
         return Results.NotFound();
     }
 
-    itemDtos.RemoveAt(index);
+    await itemsRepository.DeleteAsync(id);
 
     return Results.NoContent();
 });
