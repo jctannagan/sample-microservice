@@ -12,7 +12,7 @@ namespace Play.Common.MongoDB
     {
         public static IServiceCollection AddMongo(this IServiceCollection services)
         {
-            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));           
+            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
             
             // Add services to the container.
             services.AddSingleton(serviceProvider =>
@@ -24,8 +24,6 @@ namespace Play.Common.MongoDB
 
                 return mongoClient.GetDatabase(serviceSettings.ServiceName);
             });
-
-            
 
             return services;
         }
