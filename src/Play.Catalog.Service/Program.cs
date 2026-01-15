@@ -1,7 +1,3 @@
-using System.Runtime.CompilerServices;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -15,25 +11,11 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-ServiceSettings serviceSettings;
-
-serviceSettings = builder.Configuration.GetSection(nameof(ServiceSettings)).Get<ServiceSettings>();
-
-// Add services to the container.
-builder.Services.AddSingleton(serviceProvider =>
-{
-    var mongoDbSettings = builder.Configuration.GetSection(nameof(MongoDbSettings)).Get<MongoDbSettings>();
-    var mongoClient = new MongoClient(mongoDbSettings.ConnectionString);
-
-    return mongoClient.GetDatabase(serviceSettings.ServiceName);
-});
-
-builder.Services.AddSingleton<IItemsRepository, ItemsRepository>();
-
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-
 builder.Services.AddValidation();
+builder.Services.AddMongo();
+builder.Services.AddMongoRepository<Item>("items");
 
 var app = builder.Build();
 
@@ -43,20 +25,18 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
-
 app.UseHttpsRedirection();
 
 app.MapScalarApiReference();
 
-app.MapGet("items", async (IItemsRepository itemsRepository) =>
+app.MapGet("items", async (IRepository<Item> itemsRepository) =>
 {
     var items = (await itemsRepository.GetAllAsync()).Select(item => item.AsDto());
     return items;
 })
 .WithName("GetItems");
 
-app.MapGet("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
+app.MapGet("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 {
     var item = await itemsRepository.GetAsync(id);
     if (item is null)
@@ -68,7 +48,7 @@ app.MapGet("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
 })
 .WithName("GetItemById");
 
-app.MapPost("items", async (CreateItemDto createItem, IItemsRepository itemsRepository) =>
+app.MapPost("items", async (CreateItemDto createItem, IRepository<Item> itemsRepository) =>
 {
     var item = new Item {
         Name = createItem.Name,
@@ -85,7 +65,7 @@ app.MapPost("items", async (CreateItemDto createItem, IItemsRepository itemsRepo
 })
 .WithName("CreateItem");;
 
-app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IItemsRepository itemsRepository) =>
+app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IRepository<Item> itemsRepository) =>
 {
     var itemToUpdate = await itemsRepository.GetAsync(id);
     if (itemToUpdate is null)
@@ -103,7 +83,7 @@ app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IItemsReposit
 })
 .WithName("UpdateItem");;
 
-app.MapDelete("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
+app.MapDelete("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 {
     var item = await itemsRepository.GetAsync(id);
     if (item is null)

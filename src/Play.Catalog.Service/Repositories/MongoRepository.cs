@@ -3,31 +3,30 @@ using Play.Catalog.Service.Entities;
 
 namespace Play.Catalog.Service.Repositories
 {
-    public class ItemsRepository : IItemsRepository
+    public class MongoRepository<T> : IRepository<T> 
+    where T : IEntity
     {
         // This is similar to defining Tables on a DBContext class in EFCore
-        private const string collectionName = "items";
-        private readonly IMongoCollection<Item> dbCollection;
-        private readonly FilterDefinitionBuilder<Item> filterBuilder = Builders<Item>.Filter;
+        private readonly IMongoCollection<T> dbCollection;
+        private readonly FilterDefinitionBuilder<T> filterBuilder = Builders<T>.Filter;
 
-        public ItemsRepository(IMongoDatabase database)
-        {
-            
-            dbCollection = database.GetCollection<Item>(collectionName);
+        public MongoRepository(IMongoDatabase database, string collectionName)
+        {            
+            dbCollection = database.GetCollection<T>(collectionName);
         }
 
-        public async Task<IReadOnlyCollection<Item>> GetAllAsync()
+        public async Task<IReadOnlyCollection<T>> GetAllAsync()
         {
             return await dbCollection.Find(filterBuilder.Empty).ToListAsync();
         }
 
-        public async Task<Item> GetAsync(Guid id)
+        public async Task<T> GetAsync(Guid id)
         {
-            FilterDefinition<Item> filter = filterBuilder.Eq(entity => entity.Id, id);
+            FilterDefinition<T> filter = filterBuilder.Eq(entity => entity.Id, id);
             return await dbCollection.Find(filter).FirstOrDefaultAsync();
         }
 
-        public async Task CreateAsync(Item item)
+        public async Task CreateAsync(T item)
         {
             if (item == null)
             {
@@ -37,20 +36,20 @@ namespace Play.Catalog.Service.Repositories
             await dbCollection.InsertOneAsync(item);
         }
 
-        public async Task UpdateAsync(Item item)
+        public async Task UpdateAsync(T item)
         {
             if (item == null)
             {
                 throw new ArgumentNullException(nameof(item));
             }
             
-            FilterDefinition<Item> filter = filterBuilder.Eq(entity => entity.Id, item.Id);
+            FilterDefinition<T> filter = filterBuilder.Eq(entity => entity.Id, item.Id);
             await dbCollection.ReplaceOneAsync(filter, item);
         }
 
         public async Task DeleteAsync(Guid id)
         {
-            FilterDefinition<Item> filter = filterBuilder.Eq(entity => entity.Id, id);
+            FilterDefinition<T> filter = filterBuilder.Eq(entity => entity.Id, id);
             await dbCollection.DeleteOneAsync(filter);
         }
     }
