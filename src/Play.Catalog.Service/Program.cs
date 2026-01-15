@@ -82,7 +82,8 @@ app.MapPost("items", async (CreateItemDto createItem, IItemsRepository itemsRepo
     return Results.CreatedAtRoute(routeName: "GetItemById",
                                   routeValues: new { Id = item.Id },
                                   value: item);
-});
+})
+.WithName("CreateItem");;
 
 app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IItemsRepository itemsRepository) =>
 {
@@ -99,7 +100,8 @@ app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IItemsReposit
     await itemsRepository.UpdateAsync(itemToUpdate);
 
     return Results.NoContent();
-});
+})
+.WithName("UpdateItem");;
 
 app.MapDelete("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
 {
@@ -112,6 +114,7 @@ app.MapDelete("items/{id}", async (Guid id, IItemsRepository itemsRepository) =>
     await itemsRepository.DeleteAsync(id);
 
     return Results.NoContent();
-});
+})
+.WithName("DeleteItem");;
 
 app.Run();
