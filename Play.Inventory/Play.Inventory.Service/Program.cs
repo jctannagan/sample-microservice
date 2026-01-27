@@ -1,12 +1,11 @@
-using Microsoft.AspNetCore.Server.HttpSys;
 using Play.Common;
+using Play.Common.Messaging;
 using Play.Common.MongoDB;
 using Play.Inventory.Service;
 using Play.Inventory.Service.Clients;
 using Play.Inventory.Service.Dto;
 using Play.Inventory.Service.Entities;
 using Polly;
-using Polly.Extensions.Http;
 using Polly.Timeout;
 using Scalar.AspNetCore;
 
@@ -17,30 +16,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
 builder.Services.AddScoped<ICatalogClient, CatalogClient>();
-builder.Services.AddMongo().AddMongoRepository<InventoryItem>("inventory");
+builder.Services.AddMongo()
+.AddMongoRepository<InventoryItem>("inventoryitems")
+.AddMongoRepository<CatalogItem>("catalogitems");
+builder.Services.AddMessaging(); // Common registration of MassTransit.RabbitMQ
 
-var jitterer = new Random();
-builder.Services.AddHttpClient<ICatalogClient, CatalogClient>(client =>
-{
-    client.BaseAddress = new Uri("http://localhost:5151");
-})
-.AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(1))
-.AddTransientHttpErrorPolicy(
-    builder => builder
-                .Or<TimeoutRejectedException>()
-                .WaitAndRetryAsync(5,
-                    retryAttempt =>
-                    TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + TimeSpan.FromMilliseconds(jitterer.Next(1, 1000)
-                )
-// onRetry: (outcome, timeSpan, retryAttempt) =>
-// {
-// This action runs on each retry attempt.
-// Good opportunity to log        
-// }
-))
-.AddTransientHttpErrorPolicy(builder => builder.Or<TimeoutRejectedException>()
-                                        .CircuitBreakerAsync(5, TimeSpan.FromSeconds(15)));
-// .AddPolicyHandler(HttpPolicyExtensions.HandleTransientHttpError().CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+AddCatalogClient(builder);
 
 var app = builder.Build();
 
@@ -106,3 +87,29 @@ inventoryItemApi.MapGet("{userId}", async (Guid userId, IRepository<InventoryIte
 app.UseHttpsRedirection();
 
 app.Run();
+
+static void AddCatalogClient(WebApplicationBuilder builder)
+{
+    var jitterer = new Random();
+    builder.Services.AddHttpClient<ICatalogClient, CatalogClient>(client =>
+    {
+        client.BaseAddress = new Uri("http://localhost:5151");
+    })
+    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(1))
+    .AddTransientHttpErrorPolicy(
+        builder => builder
+                    .Or<TimeoutRejectedException>()
+                    .WaitAndRetryAsync(5,
+                        retryAttempt =>
+                        TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + TimeSpan.FromMilliseconds(jitterer.Next(1, 1000)
+                    )
+    // onRetry: (outcome, timeSpan, retryAttempt) =>
+    // {
+    // This action runs on each retry attempt.
+    // Good opportunity to log        
+    // }
+    ))
+    .AddTransientHttpErrorPolicy(builder => builder.Or<TimeoutRejectedException>()
+                                            .CircuitBreakerAsync(5, TimeSpan.FromSeconds(15)));
+    // .AddPolicyHandler(HttpPolicyExtensions.HandleTransientHttpError().CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+}

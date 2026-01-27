@@ -1,9 +1,10 @@
-using System.Runtime.CompilerServices;
-using Microsoft.AspNetCore.Http.HttpResults;
+using MassTransit;
+using Play.Catalog.Contracts;
 using Play.Catalog.Service;
 using Play.Catalog.Service.Dto;
 using Play.Catalog.Service.Entities;
 using Play.Common;
+using Play.Common.Messaging;
 using Play.Common.MongoDB;
 using Scalar.AspNetCore;
 
@@ -13,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
 builder.Services.AddMongo().AddMongoRepository<Item>("items");
+builder.Services.AddMessaging();
 
 var app = builder.Build();
 
@@ -30,18 +32,6 @@ var itemsApi = app.MapGroup("/api/items");
 
 itemsApi.MapGet(string.Empty, async (IRepository<Item> itemsRepository) =>
 {
-    MyRequests.Counter++;
-
-    if (MyRequests.Counter <= 2)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(10));
-    }
-
-    if (MyRequests.Counter <= 4)
-    {
-        return Results.InternalServerError();
-    }
-
     var items = (await itemsRepository.GetAllAsync()).Select(item => item.AsDto());
     return Results.Ok(items);
 })
@@ -59,7 +49,7 @@ itemsApi.MapGet("{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 })
 .WithName("GetItemById");
 
-itemsApi.MapPost(string.Empty, async (CreateItemDto createItem, IRepository<Item> itemsRepository) =>
+itemsApi.MapPost(string.Empty, async (CreateItemDto createItem, IRepository<Item> itemsRepository, IPublishEndpoint publishEndpoint) =>
 {
     var item = new Item {
         Name = createItem.Name,
@@ -69,6 +59,8 @@ itemsApi.MapPost(string.Empty, async (CreateItemDto createItem, IRepository<Item
     };
 
     await itemsRepository.CreateAsync(item);
+    // This publishes message to MassTransit
+    await publishEndpoint.Publish(new CatalogItemCreated(item.Id, item.Name, item.Description));
 
     return Results.CreatedAtRoute(routeName: "GetItemById",
                                   routeValues: new { Id = item.Id },
@@ -76,7 +68,7 @@ itemsApi.MapPost(string.Empty, async (CreateItemDto createItem, IRepository<Item
 })
 .WithName("CreateItem");;
 
-itemsApi.MapPut("{id}", async (Guid id, UpdateItemDto updateItem, IRepository<Item> itemsRepository) =>
+itemsApi.MapPut("{id}", async (Guid id, UpdateItemDto updateItem, IRepository<Item> itemsRepository, IPublishEndpoint publishEndpoint) =>
 {
     var itemToUpdate = await itemsRepository.GetAsync(id);
     if (itemToUpdate is null)
@@ -89,12 +81,13 @@ itemsApi.MapPut("{id}", async (Guid id, UpdateItemDto updateItem, IRepository<It
     itemToUpdate.Price = updateItem.Price;
     
     await itemsRepository.UpdateAsync(itemToUpdate);
+    await publishEndpoint.Publish(new CatalogItemUpdated(itemToUpdate.Id, itemToUpdate.Name, itemToUpdate.Description));
 
     return Results.NoContent();
 })
 .WithName("UpdateItem");;
 
-itemsApi.MapDelete("{id}", async (Guid id, IRepository<Item> itemsRepository) =>
+itemsApi.MapDelete("{id}", async (Guid id, IRepository<Item> itemsRepository, IPublishEndpoint publishEndpoint) =>
 {
     var item = await itemsRepository.GetAsync(id);
     if (item is null)
@@ -103,7 +96,7 @@ itemsApi.MapDelete("{id}", async (Guid id, IRepository<Item> itemsRepository) =>
     }
 
     await itemsRepository.DeleteAsync(id);
-
+    await publishEndpoint.Publish(new CatalogItemDeleted(id));
     return Results.NoContent();
 })
 .WithName("DeleteItem");

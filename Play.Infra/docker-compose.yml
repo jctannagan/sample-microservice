@@ -13,15 +13,15 @@ services:
     volumes:
       - mongodbdata:/data/db
   rabbitmq:
-    image: rabbitmq
-    container_name: myrabbit
+    image: rabbitmq:management
+    container_name: rabbitmq
     ports:
-      -5672:5672
-    environment:
-      - RABBITMQ_DEFAULT_USER: myuser
-      - RABBITMQ_DEFAULT_PASS: mypass
+      - 5672:5672   # Broker
+      - 15672:15672 # Portal 
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    hostname: rabbitmq # Reason: Associates how RMQ stores data internally. If not defined, you'd lose data every startup
+
 volumes:
   mongodbdata:
   rabbitmq_data:
