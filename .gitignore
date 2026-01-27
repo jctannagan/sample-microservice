@@ -17,6 +17,9 @@ Play.Catalog/Play.Catalog.Service/obj/Debug/net10.0/rpswa.dswa.cache.json
 Play.Catalog/Play.Catalog.Service/obj/Debug/net10.0/ref/Play.Catalog.Service.dll
 Play.Catalog/Play.Catalog.Service/obj/Debug/net10.0/refint/Play.Catalog.Service.dll
 
+Play.Inventory/Play.Inventory.Service/bin
+Play.Inventory/Play.Inventory.Service/obj
+
 Play.Common/Play.Common/bin/
 Play.Common/Play.Common/obj/
 Play.Common/Play.Common/obj/Debug/net10.0/Play.Common.AssemblyInfoInputs.cache
@@ -26,3 +29,6 @@ Play.Common/Play.Common/obj/project.nuget.cache
 Play.Common/Play.Common/obj/project.assets.json
 Play.Common/Play.Common/obj/Play.Common.csproj.nuget.g.targets
 Play.Common/Play.Common/obj/Play.Common.csproj.nuget.dgspec.json
+
+Play.Catalog/Play.Catalog.Contracts/bin/
+Play.Catalog/Play.Catalog.Contracts/obj/

@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Play.Catalog.Service;
-using Play.Catalog.Service.Dto.Dtos;
+using Play.Catalog.Service.Dto;
 using Play.Catalog.Service.Entities;
 using Play.Common;
 using Play.Common.MongoDB;
@@ -10,8 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
-builder.Services.AddMongo();
-builder.Services.AddMongoRepository<Item>("items");
+builder.Services.AddMongo().AddMongoRepository<Item>("items");
 
 var app = builder.Build();
 
@@ -25,14 +26,28 @@ app.UseHttpsRedirection();
 
 app.MapScalarApiReference();
 
-app.MapGet("items", async (IRepository<Item> itemsRepository) =>
+var itemsApi = app.MapGroup("/api/items");
+
+itemsApi.MapGet(string.Empty, async (IRepository<Item> itemsRepository) =>
 {
+    MyRequests.Counter++;
+
+    if (MyRequests.Counter <= 2)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(10));
+    }
+
+    if (MyRequests.Counter <= 4)
+    {
+        return Results.InternalServerError();
+    }
+
     var items = (await itemsRepository.GetAllAsync()).Select(item => item.AsDto());
-    return items;
+    return Results.Ok(items);
 })
 .WithName("GetItems");
 
-app.MapGet("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =>
+itemsApi.MapGet("{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 {
     var item = await itemsRepository.GetAsync(id);
     if (item is null)
@@ -44,7 +59,7 @@ app.MapGet("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 })
 .WithName("GetItemById");
 
-app.MapPost("items", async (CreateItemDto createItem, IRepository<Item> itemsRepository) =>
+itemsApi.MapPost(string.Empty, async (CreateItemDto createItem, IRepository<Item> itemsRepository) =>
 {
     var item = new Item {
         Name = createItem.Name,
@@ -61,7 +76,7 @@ app.MapPost("items", async (CreateItemDto createItem, IRepository<Item> itemsRep
 })
 .WithName("CreateItem");;
 
-app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IRepository<Item> itemsRepository) =>
+itemsApi.MapPut("{id}", async (Guid id, UpdateItemDto updateItem, IRepository<Item> itemsRepository) =>
 {
     var itemToUpdate = await itemsRepository.GetAsync(id);
     if (itemToUpdate is null)
@@ -79,7 +94,7 @@ app.MapPut("items/{id}", async (Guid id, UpdateItemDto updateItem, IRepository<I
 })
 .WithName("UpdateItem");;
 
-app.MapDelete("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =>
+itemsApi.MapDelete("{id}", async (Guid id, IRepository<Item> itemsRepository) =>
 {
     var item = await itemsRepository.GetAsync(id);
     if (item is null)
@@ -91,6 +106,12 @@ app.MapDelete("items/{id}", async (Guid id, IRepository<Item> itemsRepository) =
 
     return Results.NoContent();
 })
-.WithName("DeleteItem");;
+.WithName("DeleteItem");
 
 app.Run();
+
+
+public static class MyRequests
+{
+    public static int Counter { get; set; } = 0;
+}

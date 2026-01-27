@@ -8,12 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.2" />
     <PackageReference Include="Play.Common" Version="1.0.0" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.12.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Play.Catalog.Contracts\Play.Catalog.Contracts.csproj" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.12.8" />
   </ItemGroup>
 
 </Project>

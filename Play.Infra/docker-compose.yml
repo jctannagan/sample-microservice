@@ -12,6 +12,16 @@ services:
       - 27017:27017
     volumes:
       - mongodbdata:/data/db
-
+  rabbitmq:
+    image: rabbitmq
+    container_name: myrabbit
+    ports:
+      -5672:5672
+    environment:
+      - RABBITMQ_DEFAULT_USER: myuser
+      - RABBITMQ_DEFAULT_PASS: mypass
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 volumes:
   mongodbdata:
+  rabbitmq_data:
